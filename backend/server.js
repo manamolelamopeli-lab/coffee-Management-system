@@ -1,4 +1,4 @@
- require("dotenv").config();
+require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
@@ -47,34 +47,41 @@ function httpError(status, message) {
   error.status = status;
   return error;
 }
+
 function readText(value, field, maxLength = 100) {
   if (typeof value !== "string" || !value.trim()) throw httpError(400, `${field} is required.`);
   const result = value.trim();
   if (result.length > maxLength) throw httpError(400, `${field} must be ${maxLength} characters or fewer.`);
   return result;
 }
+
 function readPrice(value) {
   const price = Number(value);
   if (!Number.isFinite(price) || price <= 0 || price > 100000) throw httpError(400, "Price must be a positive number.");
   return Math.round(price * 100) / 100;
 }
+
 function readBoolean(value, field = "Availability") {
   if (typeof value !== "boolean") throw httpError(400, `${field} must be true or false.`);
   return value;
 }
+
 function readQuantity(value) {
   const quantity = Number(value);
   if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) throw httpError(400, "Quantity must be a whole number from 1 to 99.");
   return quantity;
 }
+
 function publicOrderId(number) {
   return `V${String(number).padStart(4, "0")}`;
 }
+
 function orderNumberFromId(id) {
   if (typeof id !== "string" || !/^V\d+$/.test(id)) return null;
   const number = Number(id.slice(1));
   return Number.isSafeInteger(number) && number > 0 ? number : null;
 }
+
 function mapMenu(row) {
   return {
     id: row.id,
@@ -87,6 +94,7 @@ function mapMenu(row) {
     ...(row.updated_at ? { updatedAt: new Date(row.updated_at).toISOString() } : {})
   };
 }
+
 function mapOrder(row, items) {
   return {
     id: publicOrderId(row.order_number),
@@ -99,14 +107,17 @@ function mapOrder(row, items) {
     updatedAt: new Date(row.updated_at).toISOString()
   };
 }
+
 async function getMenuItem(id) {
   const [rows] = await db.execute("SELECT * FROM menu_items WHERE id = ? LIMIT 1", [id]);
   return rows.length ? mapMenu(rows[0]) : null;
 }
+
 async function getAllMenu() {
   const [rows] = await db.execute("SELECT * FROM menu_items ORDER BY name ASC");
   return rows.map(mapMenu);
 }
+
 async function getOrder(id) {
   const number = orderNumberFromId(id);
   if (!number) return null;
@@ -125,11 +136,13 @@ async function getOrder(id) {
   }));
   return mapOrder(rows[0], items);
 }
+
 async function getAllOrders() {
   const [rows] = await db.execute("SELECT * FROM orders ORDER BY created_at DESC, order_number DESC");
   const orders = await Promise.all(rows.map((row) => getOrder(publicOrderId(row.order_number))));
   return orders.filter(Boolean);
 }
+
 async function initialiseDatabase() {
   await db.execute(`CREATE TABLE IF NOT EXISTS menu_items (
     id VARCHAR(36) PRIMARY KEY,
@@ -143,6 +156,7 @@ async function initialiseDatabase() {
     INDEX idx_menu_category (category),
     INDEX idx_menu_available (available)
   ) ENGINE=InnoDB`);
+
   await db.execute(`CREATE TABLE IF NOT EXISTS orders (
     order_number BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     customer_name VARCHAR(80) NOT NULL,
@@ -154,6 +168,7 @@ async function initialiseDatabase() {
     INDEX idx_orders_created_at (created_at),
     INDEX idx_orders_status (status)
   ) ENGINE=InnoDB`);
+
   await db.execute(`CREATE TABLE IF NOT EXISTS order_items (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     order_number BIGINT UNSIGNED NOT NULL,
@@ -168,6 +183,7 @@ async function initialiseDatabase() {
 
   const [countRows] = await db.execute("SELECT COUNT(*) AS count FROM menu_items");
   if (Number(countRows[0].count) > 0) return;
+
   const seedItems = [
     { name: "Espresso", description: "Bold and rich", category: "Coffee", price: 30 },
     { name: "Americano", description: "Smooth and balanced", category: "Coffee", price: 35 },
@@ -190,6 +206,7 @@ async function initialiseDatabase() {
     { name: "Whipped Cream", description: "Creamy topping", category: "Extras", price: 5 },
     { name: "Flavoured Syrup", description: "Vanilla, caramel or hazelnut", category: "Extras", price: 5 }
   ];
+
   for (const item of seedItems) {
     await db.execute(
       "INSERT INTO menu_items (id, name, description, category, price, available) VALUES (?, ?, ?, ?, ?, TRUE)",
@@ -198,6 +215,7 @@ async function initialiseDatabase() {
   }
   console.log("Seeded initial Aroma Coffee menu in MySQL.");
 }
+
 function requireStaff(req, res, next) {
   const header = req.headers.authorization || "";
   const [scheme, token] = header.split(" ");
@@ -218,9 +236,11 @@ app.get("/api/health", async (req, res, next) => {
     res.json({ status: "OK", database: "connected", databaseType: "MySQL", service: "Aroma Coffee API" });
   } catch (error) { next(error); }
 });
+
 app.get("/api/menu", async (req, res, next) => {
   try { res.json(await getAllMenu()); } catch (error) { next(error); }
 });
+
 app.get("/api/menu/:id", async (req, res, next) => {
   try {
     const item = await getMenuItem(req.params.id);
@@ -228,12 +248,14 @@ app.get("/api/menu/:id", async (req, res, next) => {
     res.json(item);
   } catch (error) { next(error); }
 });
+
 app.post("/api/staff/login", (req, res) => {
   const { username, password } = req.body || {};
   if (username !== STAFF_USERNAME || password !== STAFF_PASSWORD) return res.status(401).json({ error: "Incorrect username or password." });
   const token = jwt.sign({ username, role: "staff" }, JWT_SECRET, { expiresIn: "8h" });
   res.json({ token, username, expiresIn: "8h" });
 });
+
 app.post("/api/menu", requireStaff, async (req, res, next) => {
   try {
     const item = {
@@ -250,6 +272,7 @@ app.post("/api/menu", requireStaff, async (req, res, next) => {
     res.status(201).json(item);
   } catch (error) { next(error); }
 });
+
 app.put("/api/menu/:id", requireStaff, async (req, res, next) => {
   try {
     const existing = await getMenuItem(req.params.id);
@@ -268,6 +291,7 @@ app.put("/api/menu/:id", requireStaff, async (req, res, next) => {
     res.json(item);
   } catch (error) { next(error); }
 });
+
 app.delete("/api/menu/:id", requireStaff, async (req, res, next) => {
   try {
     const [result] = await db.execute("DELETE FROM menu_items WHERE id = ?", [req.params.id]);
@@ -275,6 +299,7 @@ app.delete("/api/menu/:id", requireStaff, async (req, res, next) => {
     res.json({ message: "Menu item deleted." });
   } catch (error) { next(error); }
 });
+
 app.post("/api/orders", async (req, res, next) => {
   let connection;
   try {
@@ -319,6 +344,7 @@ app.post("/api/orders", async (req, res, next) => {
     if (connection) connection.release();
   }
 });
+
 app.get("/api/orders/:id", async (req, res, next) => {
   try {
     const order = await getOrder(req.params.id);
@@ -326,9 +352,11 @@ app.get("/api/orders/:id", async (req, res, next) => {
     res.json({ id: order.id, customerName: order.customerName, items: order.items, total: order.total, currency: order.currency, status: order.status, createdAt: order.createdAt });
   } catch (error) { next(error); }
 });
+
 app.get("/api/orders", requireStaff, async (req, res, next) => {
   try { res.json(await getAllOrders()); } catch (error) { next(error); }
 });
+
 app.patch("/api/orders/:id/status", requireStaff, async (req, res, next) => {
   try {
     const order = await getOrder(req.params.id);
@@ -343,6 +371,7 @@ app.patch("/api/orders/:id/status", requireStaff, async (req, res, next) => {
     res.json(await getOrder(order.id));
   } catch (error) { next(error); }
 });
+
 app.get("/api/staff/summary", requireStaff, async (req, res, next) => {
   try {
     const orders = await getAllOrders();
@@ -359,12 +388,15 @@ app.get("/api/staff/summary", requireStaff, async (req, res, next) => {
     res.json({ date: today, orderCount: todaysOrders.length, orderValue: Math.round(orderValue * 100) / 100, collectedValue: Math.round(collectedValue * 100) / 100, statusCounts });
   } catch (error) { next(error); }
 });
+
 app.use((req, res) => res.status(404).json({ error: "Endpoint not found." }));
+
 app.use((error, req, res, next) => {
   console.error(error);
   const status = Number.isInteger(error.status) ? error.status : 500;
   res.status(status).json({ error: status === 500 ? "Something went wrong on the server. Please try again." : error.message });
 });
+
 async function start() {
   try {
     await db.query("SELECT 1");
@@ -375,4 +407,5 @@ async function start() {
     process.exit(1);
   }
 }
+
 start();

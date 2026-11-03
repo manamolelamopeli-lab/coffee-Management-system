@@ -1,4 +1,4 @@
-const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/$/, "");
+const API_URL = (import.meta.env.VITE_API_URL || "https://coffee-management-system-qkvo.onrender.com").replace(/\/$/, "");
 
 export async function apiRequest(path, options = {}, token = "") {
   const headers = { ...(options.headers || {}) };
