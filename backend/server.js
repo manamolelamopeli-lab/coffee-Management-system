@@ -39,7 +39,7 @@ const db = mysql.createPool({
   queueLimit: 0,
   timezone: "Z",
   decimalNumbers: true,
-  ssl: process.env.MYSQL_SSL === "true" ? { rejectUnauthorized: true } : undefined
+  ssl: process.env.MYSQL_SSL === "true" ? { ca:process.env.MYSQL_SSL_CA,rejectUnauthorized: true } : undefined
 });
 
 function httpError(status, message) {
